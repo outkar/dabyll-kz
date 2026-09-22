@@ -66,7 +66,6 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model: process.env.ANTHROPIC_MODEL || "claude-sonnet-5",
         max_tokens: 700,
-        temperature: 0.3,
         system: SYSTEM_PROMPT,
         messages,
       }),
@@ -74,8 +73,8 @@ export default async function handler(req, res) {
 
     const data = await r.json();
     if (!r.ok) {
-      console.error("Anthropic error", r.status, data);
-      return res.status(502).json({ error: "Upstream error" });
+      console.error("Anthropic error", r.status, JSON.stringify(data));
+      return res.status(502).json({ error: "Upstream error", detail: data?.error?.message || null });
     }
     const reply = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n").trim();
     return res.status(200).json({ reply });
