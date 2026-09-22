@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="kk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dabyll.kz · Онлайн-алаяқтардан қорғау</title>
+<meta name="description" content="Банк клиенттерін онлайн-алаяқтардан қорғаудың цифрлық жүйесі">
+<link rel="icon" href="icons/bell.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="#/" aria-label="Dabyll.kz басты бет">
+    <img src="icons/bell.jpg" alt="" width="44" height="44">
+    <span>Dabyll<span class="brand-dot">.kz</span></span>
+  </a>
+  <p class="tagline">Банк клиенттерін онлайн-алаяқтардан қорғаудың цифрлық жүйесі</p>
+</header>
+
+<main class="frame" id="app" tabindex="-1"></main>
+
+<div class="call-overlay" id="callOverlay" hidden>
+  <div class="call-box" role="dialog" aria-modal="true" aria-labelledby="callTitle">
+    <img src="icons/phone.jpg" alt="" class="call-icon">
+    <p class="call-number" id="callTitle">4143</p>
+    <p class="call-status" id="callStatus">Қосылуда…</p>
+    <p class="call-timer" id="callTimer">00:00</p>
+    <button class="btn btn-alarm" id="hangUp">Қоңырауды аяқтау</button>
+    <p class="demo-note">Прототип: қоңырау имитацияланады</p>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
