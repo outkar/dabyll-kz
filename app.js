@@ -67,7 +67,7 @@ const state = {
   templateId: load("dabyll.template", "t1"),
   userName: load("dabyll.name", ""),
   contacts: load("dabyll.contacts", DEFAULT_CONTACTS),
-  block: { bank: null, last4: "", reason: "lost" },
+  block: { bank: null, cardNumber: "", cvv: "", expiry: "", iin: "", reason: "lost" },
   chat: [],
 };
 
@@ -103,6 +103,30 @@ function normalizePhone(raw) {
   if (d.length === 11 && d.startsWith("8")) d = "7" + d.slice(1);
   if (d.length === 10) d = "7" + d;
   return d.length === 11 && d.startsWith("7") ? d : null;
+}
+function digitsOnly(value, limit) {
+  return String(value).replace(/\D/g, "").slice(0, limit);
+}
+function formatCard(value) {
+  return digitsOnly(value, 16).replace(/(\d{4})(?=\d)/g, "$1 ").trim();
+}
+function formatExpiry(value) {
+  const d = digitsOnly(value, 4);
+  return d.length > 2 ? `${d.slice(0, 2)}/${d.slice(2)}` : d;
+}
+function validExpiry(value) {
+  const m = /^(\d{2})\/(\d{2})$/.exec(value);
+  if (!m) return false;
+  const month = Number(m[1]);
+  return month >= 1 && month <= 12;
+}
+function maskCard(value) {
+  const d = digitsOnly(value, 16);
+  return d.length >= 4 ? `•••• •••• •••• ${d.slice(-4)}` : "••••";
+}
+function maskIin(value) {
+  const d = digitsOnly(value, 12);
+  return d.length >= 4 ? `••••••••${d.slice(-4)}` : "••••";
 }
 
 /* ---------- screens ---------- */
@@ -233,17 +257,41 @@ function drawContacts(msg) {
     save("dabyll.contacts", state.contacts);
     drawContacts(msg);
   }));
-  list.querySelectorAll(".contact-phone").forEach((inp) => inp.addEventListener("change", () => {
-    state.contacts[Number(inp.dataset.i)].phone = inp.value.trim();
+  list.querySelectorAll(".contact-phone").forEach((inp) => inp.addEventListener("input", () => {
+    const index = Number(inp.dataset.i);
+    state.contacts[index].phone = inp.value.trim();
     save("dabyll.contacts", state.contacts);
-    drawContacts(msg);
+    updateContactSend(inp.closest(".contact"), state.contacts[index], msg);
   }));
+}
+
+function updateContactSend(contact, contactData, msg) {
+  const n = normalizePhone(contactData.phone);
+  const text = encodeURIComponent(msg);
+  const input = contact.querySelector(".contact-phone");
+  const [whatsapp, sms] = contact.querySelectorAll(".contact-send a");
+  input.classList.toggle("bad", Boolean(contactData.phone && !n));
+  [
+    [whatsapp, n ? `https://wa.me/${n}?text=${text}` : "#"],
+    [sms, n ? `sms:+${n}?body=${text}` : "#"],
+  ].forEach(([link, href]) => {
+    link.href = href;
+    if (n) {
+      link.removeAttribute("aria-disabled");
+      link.removeAttribute("tabindex");
+      link.removeAttribute("style");
+    } else {
+      link.setAttribute("aria-disabled", "true");
+      link.setAttribute("tabindex", "-1");
+      link.setAttribute("style", "opacity:.4;pointer-events:none");
+    }
+  });
 }
 
 /* Жедел бұғаттау */
 function renderBlock() {
   app.innerHTML = frame("Жедел бұғаттау", panel("block", `
-    <a class="choice" href="#/block/card">Карта және жеке деректерді енгізу</a>
+    <a class="choice" href="#/block/card">Карта және деректерді бұғаттау</a>
     <a class="choice" href="#/block/banks">Банкке қоңырау шалу</a>
   `), "#/");
 }
@@ -259,16 +307,30 @@ function renderBlockBanks() {
 
 function renderBlockCard() {
   const s = state.block;
-  app.innerHTML = frame("Картаны бұғаттау", panel("block", `
-    <p class="safe-note">Dabyll толық карта нөмірін, CVV кодын, PIN-кодты және SMS-кодты ешқашан сұрамайды. Тек банкті және картаның соңғы 4 санын көрсетіңіз.</p>
+  app.innerHTML = frame("Карта және деректерді бұғаттау", panel("block", `
+    <p class="safe-note">Демо режим: бұл деректер тек осы экрандағы прототип үшін қолданылады, серверге жіберілмейді және браузер жадында сақталмайды. PIN-код пен SMS-кодты ешқашан енгізбеңіз.</p>
     <div class="field"><span>Банкті таңдаңыз</span>
       <div class="banks" role="group" aria-label="Банк">
         ${BANKS.map((b) => `<button type="button" class="bank" data-id="${b.id}" aria-pressed="${s.bank === b.id}">${esc(b.name)}</button>`).join("")}
       </div>
     </div>
     <div class="field">
-      <label for="last4">Картаның соңғы 4 саны</label>
-      <input id="last4" class="pin4" inputmode="numeric" maxlength="4" autocomplete="off" value="${esc(s.last4)}" placeholder="0000">
+      <label for="cardNumber">Карта нөмірі</label>
+      <input id="cardNumber" inputmode="numeric" maxlength="19" autocomplete="off" value="${esc(formatCard(s.cardNumber))}" placeholder="0000 0000 0000 0000">
+    </div>
+    <div class="block-fields">
+      <div class="field">
+        <label for="expiry">Жарамдылық мерзімі</label>
+        <input id="expiry" inputmode="numeric" maxlength="5" autocomplete="off" value="${esc(s.expiry)}" placeholder="MM/YY">
+      </div>
+      <div class="field">
+        <label for="cvv">CVV</label>
+        <input id="cvv" inputmode="numeric" maxlength="3" autocomplete="off" value="${esc(s.cvv)}" placeholder="000">
+      </div>
+    </div>
+    <div class="field">
+      <label for="iin">ЖСН / ИИН</label>
+      <input id="iin" inputmode="numeric" maxlength="12" autocomplete="off" value="${esc(s.iin)}" placeholder="000000000000">
     </div>
     <fieldset class="field reasons" style="border:0;padding:0;margin:0">
       <legend style="margin-bottom:6px">Не болды?</legend>
@@ -279,15 +341,33 @@ function renderBlockCard() {
   `), "#/block");
 
   const go = document.getElementById("blockGo");
-  const sync = () => { go.disabled = !(s.bank && /^\d{4}$/.test(s.last4)); };
+  const sync = () => {
+    go.disabled = !(s.bank && digitsOnly(s.cardNumber, 16).length === 16 && /^\d{3}$/.test(s.cvv) && validExpiry(s.expiry) && digitsOnly(s.iin, 12).length === 12);
+  };
   app.querySelectorAll(".bank").forEach((b) => b.addEventListener("click", () => {
     s.bank = b.dataset.id;
     app.querySelectorAll(".bank").forEach((x) => x.setAttribute("aria-pressed", x === b));
     sync();
   }));
-  document.getElementById("last4").addEventListener("input", (e) => {
-    e.target.value = e.target.value.replace(/\D/g, "").slice(0, 4);
-    s.last4 = e.target.value; sync();
+  document.getElementById("cardNumber").addEventListener("input", (e) => {
+    e.target.value = formatCard(e.target.value);
+    s.cardNumber = e.target.value;
+    sync();
+  });
+  document.getElementById("expiry").addEventListener("input", (e) => {
+    e.target.value = formatExpiry(e.target.value);
+    s.expiry = e.target.value;
+    sync();
+  });
+  document.getElementById("cvv").addEventListener("input", (e) => {
+    e.target.value = digitsOnly(e.target.value, 3);
+    s.cvv = e.target.value;
+    sync();
+  });
+  document.getElementById("iin").addEventListener("input", (e) => {
+    e.target.value = digitsOnly(e.target.value, 12);
+    s.iin = e.target.value;
+    sync();
   });
   app.querySelectorAll('input[name="reason"]').forEach((r) => r.addEventListener("change", () => { s.reason = r.value; }));
   go.addEventListener("click", () => { location.hash = "#/block/result"; });
@@ -297,17 +377,17 @@ function renderBlockCard() {
 function renderBlockResult() {
   const s = state.block;
   const bank = BANKS.find((b) => b.id === s.bank);
-  if (!bank || !/^\d{4}$/.test(s.last4)) { location.hash = "#/block/card"; return; }
+  if (!bank || digitsOnly(s.cardNumber, 16).length !== 16 || !/^\d{3}$/.test(s.cvv) || !validExpiry(s.expiry) || digitsOnly(s.iin, 12).length !== 12) { location.hash = "#/block/card"; return; }
   const extra = {
     lost: "Картаны қайта шығаруды банк қосымшасынан немесе бөлімшеден сұраңыз.",
     code: "Банк қосымшасының құпиясөзін ауыстырыңыз және 102 нөміріне хабарласып, полицияға арыз беріңіз.",
     tx: "Банкке операцияға дау айту (опротестование) туралы өтініш беріңіз, скриншоттарды сақтап қойыңыз.",
   }[s.reason];
   app.innerHTML = frame("Бұғаттау нұсқаулығы", panel("block", `
-    <span class="card-chip">${esc(bank.name)} •••• ${esc(s.last4)}</span>
+    <span class="card-chip">${esc(bank.name)} ${esc(maskCard(s.cardNumber))} · ${esc(s.expiry)} · CVV *** · ЖСН ${esc(maskIin(s.iin))}</span>
     <ol class="steps">
       <li>${esc(bank.name)} қосымшасын ашып, картаны таңдаңыз да, «Бұғаттау» батырмасын басыңыз.</li>
-      <li>Қосымшаға кіре алмасаңыз, банкке қоңырау шалыңыз: <a href="tel:${bank.phone}"><strong>${bank.phone}</strong></a>. Операторға картаның соңғы 4 санын айтсаңыз жеткілікті.</li>
+      <li>Қосымшаға кіре алмасаңыз, банкке қоңырау шалыңыз: <a href="tel:${bank.phone}"><strong>${bank.phone}</strong></a>. Операторға деректерді тек ресми арнада айтыңыз.</li>
       <li>${esc(extra)}</li>
     </ol>
     <div style="display:flex;gap:12px;flex-wrap:wrap">
