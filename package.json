@@ -2,5 +2,8 @@
   "name": "dabyll-kz",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=18" }
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "@upstash/redis": "^1.34.3"
+  }
 }

@@ -145,7 +145,8 @@ function renderHome() {
       ${tile("#/sos", "sos", "SOS-Ескерту", '<span class="tile-badge">SMS</span>')}
       ${tile("#/block", "block", "Жедел бұғаттау")}
       ${tile("#/ai", "ai", "Ai-жәрдем", '<span class="tile-badge ai">Ai</span>')}
-      ${tile("#/guide", "guide", "Қауіпсіздік гиді", "", "wide")}
+      ${tile("#/guide", "guide", "Қауіпсіздік гиді")}
+      ${tile("#/blacklist", "blacklist", "Қара тізім базасы")}
     </nav>`);
 }
 function tile(href, icon, label, badge = "", extra = "") {
@@ -515,6 +516,170 @@ function renderGuideItem(id) {
   `), "#/guide");
 }
 
+/* ---------- Қара тізім базасы ---------- */
+const BL_KINDS = [
+  { id: "phone", label: "Телефон нөмірі", ph: "+7 (777) 000-00-00", mode: "tel" },
+  { id: "card", label: "Карта нөмірі", ph: "0000 0000 0000 0000", mode: "numeric" },
+  { id: "account", label: "Банк шоты (IBAN)", ph: "KZ00 0000 0000 0000 0000", mode: "text" },
+  { id: "link", label: "Сілтеме", ph: "example.kz", mode: "text" },
+];
+const blState = { tab: "check", kind: "phone" };
+
+// Осы браузердің тұрақты белгісі (қайталап дауыс бермеу үшін)
+function blVoter() {
+  try {
+    let v = localStorage.getItem("dabyll.voter");
+    if (!v) { v = "v" + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem("dabyll.voter", v); }
+    return v;
+  } catch { return "anon"; }
+}
+
+async function blApi(payload) {
+  const res = await fetch("/api/blacklist", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (res.status === 503) return { _offline: true };
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "error");
+  return data;
+}
+
+/* Локаль қосалқы база (Redis қолжетімсіз болса) */
+function blLocal() {
+  try { return JSON.parse(localStorage.getItem("dabyll.bl") || "{}"); } catch { return {}; }
+}
+function blLocalSave(db) { try { localStorage.setItem("dabyll.bl", JSON.stringify(db)); } catch {} }
+function blLocalKey(kind, value) { return kind + ":" + value; }
+
+function renderBlacklist() {
+  app.innerHTML = frame("Қара тізім базасы", panel("blacklist", `
+    <div class="bl-tabs" role="tablist">
+      <button class="bl-tab" data-tab="check" role="tab" aria-selected="${blState.tab === "check"}">Тексеру</button>
+      <button class="bl-tab" data-tab="update" role="tab" aria-selected="${blState.tab === "update"}">Базаны жаңарту</button>
+    </div>
+    <div id="blBody"></div>
+  `), "#/");
+  app.querySelectorAll(".bl-tab").forEach((b) => b.addEventListener("click", () => {
+    blState.tab = b.dataset.tab;
+    app.querySelectorAll(".bl-tab").forEach((x) => x.setAttribute("aria-selected", x === b));
+    drawBlBody();
+  }));
+  drawBlBody();
+}
+
+function kindSelector() {
+  return `<div class="bl-kinds" role="group" aria-label="Дерек түрі">
+    ${BL_KINDS.map((k) => `<button type="button" class="bl-kind" data-kind="${k.id}" aria-pressed="${blState.kind === k.id}">${esc(k.label)}</button>`).join("")}
+  </div>`;
+}
+
+function drawBlBody() {
+  const box = document.getElementById("blBody");
+  const k = BL_KINDS.find((x) => x.id === blState.kind) || BL_KINDS[0];
+  if (blState.tab === "check") {
+    box.innerHTML = `
+      <p class="sos-head">Күмәнді телефонды, картаны, банк шотын немесе сілтемені тексеріңіз.</p>
+      ${kindSelector()}
+      <div class="field">
+        <label for="blInput">${esc(k.label)}</label>
+        <input id="blInput" inputmode="${k.mode}" placeholder="${esc(k.ph)}" autocomplete="off">
+      </div>
+      <div class="row-end"><button class="btn btn-alarm" id="blCheckBtn">Тексеру</button></div>
+      <div id="blResult"></div>`;
+  } else {
+    box.innerHTML = `
+      <p class="sos-head">Егер алданып, бір нөмірге не картаға ақша аударсаңыз, сол деректі базаға енгізіңіз. Ол басқаларды сақтандырады.</p>
+      ${kindSelector()}
+      <div class="field">
+        <label for="blInput">${esc(k.label)}</label>
+        <input id="blInput" inputmode="${k.mode}" placeholder="${esc(k.ph)}" autocomplete="off">
+      </div>
+      <div class="field" id="blBankField" ${k.id === "card" ? "" : "hidden"}>
+        <label for="blBank">Банк (міндетті емес)</label>
+        <input id="blBank" placeholder="Мысалы: Kaspi.kz" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="blReason">Не болды? (міндетті емес)</label>
+        <input id="blReason" placeholder="Мысалы: «банк қызметкері» деп қоңырау шалды" autocomplete="off">
+      </div>
+      <div class="row-end"><button class="btn btn-green" id="blReportBtn">Базаға енгізу</button></div>
+      <div id="blResult"></div>`;
+  }
+  box.querySelectorAll(".bl-kind").forEach((b) => b.addEventListener("click", () => {
+    blState.kind = b.dataset.kind; drawBlBody();
+  }));
+  const checkBtn = document.getElementById("blCheckBtn");
+  if (checkBtn) checkBtn.addEventListener("click", doBlCheck);
+  const repBtn = document.getElementById("blReportBtn");
+  if (repBtn) repBtn.addEventListener("click", doBlReport);
+}
+
+function blResultBox(html) { document.getElementById("blResult").innerHTML = html; }
+
+async function doBlCheck() {
+  const val = document.getElementById("blInput").value.trim();
+  if (!val) return;
+  blResultBox(`<p class="hint">Тексерілуде…</p>`);
+  try {
+    let data = await blApi({ action: "check", kind: blState.kind, value: val });
+    if (data._offline) {
+      const db = blLocal();
+      const norm = val.replace(/\s+/g, "");
+      const rec = db[blLocalKey(blState.kind, norm)];
+      data = rec ? { found: true, ...rec } : { found: false };
+    }
+    if (!data.found) {
+      blResultBox(`<div class="bl-clean"><strong>Базада тіркелмеген.</strong> Бұл дерек әзірге қара тізімде жоқ. Дегенмен сақ болыңыз: жаңа алаяқтар базада болмауы мүмкін.</div>`);
+    } else {
+      const inv = data.investigation ? `<p class="bl-inv">Бұл дерек бойынша антифрод тексерісі жүріп жатыр.</p>` : "";
+      const bank = data.bank ? ` (${esc(data.bank)})` : "";
+      const reason = data.lastReason ? `<p class="bl-reason">Соңғы шағым: ${esc(data.lastReason)}</p>` : "";
+      blResultBox(`<div class="bl-danger">
+        <strong>НАЗАР АУДАРЫҢЫЗ!</strong> Бұл дерек${bank} қара тізімде тіркелген: барлығы ${data.reports} шағым, соңғы 24 сағатта ${data.window24h || data.reports}.
+        ${reason}${inv}
+      </div>`);
+    }
+  } catch {
+    blResultBox(`<div class="bl-clean">Тексеру мүмкін болмады. Кейінірек қайталап көріңіз.</div>`);
+  }
+}
+
+async function doBlReport() {
+  const val = document.getElementById("blInput").value.trim();
+  if (!val) return;
+  const bankEl = document.getElementById("blBank");
+  const reasonEl = document.getElementById("blReason");
+  const bank = bankEl && !bankEl.closest(".field").hidden ? bankEl.value.trim() : "";
+  const reason = reasonEl ? reasonEl.value.trim() : "";
+  blResultBox(`<p class="hint">Жіберілуде…</p>`);
+  try {
+    let data = await blApi({ action: "report", kind: blState.kind, value: val, bank, reason, voter: blVoter() });
+    if (data._offline) {
+      const db = blLocal();
+      const norm = val.replace(/\s+/g, "");
+      const key = blLocalKey(blState.kind, norm);
+      const rec = db[key] || { reports: 0, window24h: 0, investigation: false };
+      rec.reports += 1; rec.window24h += 1;
+      if (bank) rec.bank = bank; if (reason) rec.lastReason = reason;
+      const justStarted = !rec.investigation && rec.reports >= 2;
+      if (rec.reports >= 2) rec.investigation = true;
+      db[key] = rec; blLocalSave(db);
+      data = { ok: true, counted: true, reports: rec.reports, investigation: rec.investigation, justStarted, threshold: 2 };
+    }
+    let html = `<div class="bl-clean"><strong>Ақпарат антифрод қызметіне жіберілді.</strong>`;
+    if (!data.counted) html += ` Бұл деректі сіз бұрын енгізгенсіз, сондықтан шағым саны өзгерген жоқ.`;
+    else html += ` Барлық шағым саны: ${data.reports}.`;
+    html += `</div>`;
+    if (data.justStarted) {
+      html += `<div class="bl-danger"><strong>Бұл дерек бойынша антифрод тексерісі басталды.</strong> Бірнеше адамнан шағым түсті.</div>`;
+    }
+    blResultBox(html);
+  } catch {
+    blResultBox(`<div class="bl-clean">Жіберу мүмкін болмады. Кейінірек қайталап көріңіз.</div>`);
+  }
+}
+
 /* ---------- router ---------- */
 function route() {
   const h = location.hash.replace(/^#/, "") || "/";
@@ -529,6 +694,7 @@ function route() {
     "/block/result": renderBlockResult,
     "/ai": renderAi,
     "/guide": renderGuide,
+    "/blacklist": renderBlacklist,
   };
   if (routes[h]) routes[h]();
   else if (h.startsWith("/guide/")) renderGuideItem(h.split("/")[2]);

@@ -310,3 +310,28 @@ button, input, textarea, select { font: inherit; color: inherit; }
   .tagline { display: none; }
   .msg { max-width: 92%; }
 }
+
+/* ---------- Қара тізім базасы ---------- */
+.bl-tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+.bl-tab {
+  flex: 1; padding: 14px 16px; border: 2px solid var(--leaf, #8FD86A); border-radius: 12px;
+  background: #fff; font-weight: 800; font-size: 17px; cursor: pointer; color: var(--ink, #1B1410);
+}
+.bl-tab[aria-selected="true"] { background: var(--tangerine, #FF8C4A); border-color: var(--tangerine, #FF8C4A); color: #fff; }
+.bl-kinds { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 4px; }
+.bl-kind {
+  padding: 12px 14px; border: 2px solid #d9cfc2; border-radius: 10px; background: #fff;
+  font-weight: 700; font-size: 15px; cursor: pointer; color: var(--ink, #1B1410);
+}
+.bl-kind[aria-pressed="true"] { border-color: var(--leaf-dark, #4E9A2F); background: #F2FBEC; }
+.bl-danger {
+  margin-top: 16px; padding: 18px 20px; border-radius: 14px;
+  background: #FDECEA; border: 2px solid #E4573C; color: #7A1F12; font-size: 17px; line-height: 1.5;
+}
+.bl-danger strong { color: #C62811; }
+.bl-clean {
+  margin-top: 16px; padding: 18px 20px; border-radius: 14px;
+  background: #F1F8EC; border: 2px solid #8FD86A; color: #244016; font-size: 17px; line-height: 1.5;
+}
+.bl-inv { margin: 10px 0 0; font-weight: 700; color: #C62811; }
+.bl-reason { margin: 8px 0 0; color: #7A1F12; }
