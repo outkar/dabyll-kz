@@ -1,6 +1,14 @@
 /* Dabyll.kz прототипі. Барлық экрандар hash-маршрутпен ауысады: #/, #/komek, #/sos ... */
 
-const HOTLINE = "4143"; // Dabyll сервисінің шартты (прототип) нөмірі
+// Қалалар бойынша шұғыл көмек нөмірлері
+const HELP_LINES = [
+  { city: "Астана", phone: "+7 (7172) 71-63-35" },
+  { city: "Алматы", phone: "+7 (727) 254-42-20" },
+  { city: "Шымкент", phone: "+7 (7252) 97-66-10" },
+  { city: "Қарағанды", phone: "+7 (7212) 42-93-50" },
+  { city: "Орал", phone: "+7 (7112) 92-19-06" },
+];
+const telHref = (p) => "tel:" + p.replace(/[^\d+]/g, "");
 
 const BANKS = [
   { id: "kaspi", name: "Kaspi.kz", phone: "9999" },
@@ -153,11 +161,12 @@ function panel(icon, body, alt = "") {
 
 function renderKomek() {
   app.innerHTML = frame("Шұғыл көмек", panel("phone", `
-    <button class="hotline" id="callBtn"><u>${HOTLINE}</u> - қоңырау шалу 📞</button>
-    <p>Алаяққа код айтып қойсаңыз, ақша аударып жіберсеңіз немесе күмәнді қоңырау келсе, Dabyll желісіне хабарласыңыз.</p>
+    <p>Алаяққа код айтып қойсаңыз, ақша аударып жіберсеңіз немесе күмәнді қоңырау келсе, өз қалаңыздың нөміріне қоңырау шалыңыз.</p>
+    <ul class="bank-list">
+      ${HELP_LINES.map((l) => `<li><a href="${telHref(l.phone)}">${esc(l.city)}: ${esc(l.phone)}</a></li>`).join("")}
+    </ul>
     <p class="safe-note">Қауіп төнсе, полиция: 102</p>
   `), "#/");
-  document.getElementById("callBtn").addEventListener("click", startCall);
 }
 
 /* SOS қадам 1: үлгіні таңдау */
@@ -211,7 +220,7 @@ function renderSosContacts() {
         </form>
       </section>
       <div>
-        <div class="bubble"><h3>${HOTLINE}</h3><p>${esc(msg)}</p></div>
+        <div class="bubble"><h3>Дайын хабарлама</h3><p>${esc(msg)}</p></div>
         <p class="hint">Әр контактінің жанындағы батырма WhatsApp немесе SMS қосымшасын дайын мәтінмен ашады. Жіберуді өзіңіз растайсыз.</p>
         <div class="row-end"><a class="btn" href="#/sos">Үлгіні өзгерту</a></div>
       </div>
@@ -488,7 +497,7 @@ function offlineReply(text) {
     return "Бұл «банк қызметкері» болып қоңырау шалатын алаяқтың сценарийіне ұқсайды.\n\n1. Қоңырауды дереу үзіңіз.\n2. SMS-кодты ешкімге айтпаңыз, ақшаны «қауіпсіз шотқа» аудармаңыз.\n3. Банкке картаның артындағы нөмір бойынша өзіңіз қоңырау шалыңыз (Kaspi 9999, Halyk 7111, Jusan 7711, BCC 505).";
   if (has("код", "code", "cvv", "пароль", "құпия"))
     return "Кодты немесе құпия деректерді айтып қойсаңыз, уақыт маңызды.\n\n1. «Жедел бұғаттау» бөлімінде картаны бұғаттаңыз.\n2. Банк қосымшасының құпиясөзін ауыстырыңыз.\n3. 102 нөміріне хабарласып, полицияға арыз беріңіз.";
-  return "Жағдайды толығырақ жазыңыз: кім хабарласты, не сұрады, сіз не айтып үлгердіңіз? Шұғыл жағдайда Dabyll желісіне 4143 қоңырау шалыңыз немесе «Жедел бұғаттау» бөлімін ашыңыз.";
+  return "Жағдайды толығырақ жазыңыз: кім хабарласты, не сұрады, сіз не айтып үлгердіңіз? Шұғыл жағдайда «Шұғыл көмек» бөліміндегі қалалық нөмірге қоңырау шалыңыз немесе «Жедел бұғаттау» бөлімін ашыңыз.";
 }
 
 /* Қауіпсіздік гиді */
@@ -505,37 +514,6 @@ function renderGuideItem(id) {
     <div class="todo"><strong>Не істеу керек?</strong><p>${esc(g.todo)}</p></div>
   `), "#/guide");
 }
-
-/* ---------- 4143 қоңырау имитациясы ---------- */
-const overlay = document.getElementById("callOverlay");
-let callTimer = null;
-function startCall() {
-  const box = overlay.querySelector(".call-box");
-  const status = document.getElementById("callStatus");
-  const timer = document.getElementById("callTimer");
-  box.classList.remove("connected");
-  status.textContent = "Қосылуда…"; timer.textContent = "00:00";
-  overlay.hidden = false;
-  document.getElementById("hangUp").focus();
-  let sec = 0;
-  clearInterval(callTimer);
-  callTimer = setTimeout(() => {
-    box.classList.add("connected");
-    status.textContent = "Dabyll операторы байланыста";
-    callTimer = setInterval(() => {
-      sec++;
-      timer.textContent = `${String(Math.floor(sec / 60)).padStart(2, "0")}:${String(sec % 60).padStart(2, "0")}`;
-    }, 1000);
-  }, 2200);
-}
-function endCall() {
-  clearTimeout(callTimer); clearInterval(callTimer);
-  overlay.hidden = true;
-  toast("Қоңырау аяқталды");
-}
-document.getElementById("hangUp").addEventListener("click", endCall);
-overlay.addEventListener("click", (e) => { if (e.target === overlay) endCall(); });
-document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !overlay.hidden) endCall(); });
 
 /* ---------- router ---------- */
 function route() {
