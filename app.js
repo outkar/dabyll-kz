@@ -555,8 +555,8 @@ function blLocalKey(kind, value) { return kind + ":" + value; }
 function renderBlacklist() {
   app.innerHTML = frame("Қара тізім базасы", panel("blacklist", `
     <div class="bl-tabs" role="tablist">
-      <button class="bl-tab" data-tab="check" role="tab" aria-selected="${blState.tab === "check"}">Тексеру</button>
-      <button class="bl-tab" data-tab="update" role="tab" aria-selected="${blState.tab === "update"}">Базаны жаңарту</button>
+      <button class="bl-tab" data-tab="check" role="tab" aria-selected="${blState.tab === "check"}"><img src="icons/check.jpg" alt="" class="bl-tab-icon">Тексеру</button>
+      <button class="bl-tab" data-tab="update" role="tab" aria-selected="${blState.tab === "update"}"><img src="icons/dbadd.jpg" alt="" class="bl-tab-icon">Базаны жаңарту</button>
     </div>
     <div id="blBody"></div>
   `), "#/");

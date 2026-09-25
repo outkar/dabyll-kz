@@ -313,7 +313,9 @@ button, input, textarea, select { font: inherit; color: inherit; }
 
 /* ---------- Қара тізім базасы ---------- */
 .bl-tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+.bl-tab-icon { width: 26px; height: 26px; border-radius: 7px; object-fit: cover; flex: 0 0 auto; }
 .bl-tab {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
   flex: 1; padding: 14px 16px; border: 2px solid var(--leaf, #8FD86A); border-radius: 12px;
   background: #fff; font-weight: 800; font-size: 17px; cursor: pointer; color: var(--ink, #1B1410);
 }
