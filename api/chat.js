@@ -28,7 +28,11 @@ Rules:
 - Real banks and state services never ask for SMS codes by phone and never ask to move money to a "safe account". State this when relevant.
 - Keep answers short: under 120 words, plain text, no markdown headings or bold, numbered steps allowed.
 - You do not have access to bank systems and cannot block cards yourself; say so if asked, and give the bank number.
-- If the question is unrelated to fraud, banking safety or cyber hygiene, politely say you only help with protection from fraud.`;
+- If the question is unrelated to fraud, banking safety or cyber hygiene, politely say you only help with protection from fraud.
+
+Images: the user may attach a screenshot or photo (SMS, a message from a "bank", a web page, a messenger chat). Read the text in the image and judge whether it shows a fraud attempt. Point out the concrete red flags you see (urgency, a request for an SMS code, a link that imitates a bank, a demand to move money to a "safe account"), then give the numbered steps. Do not claim to detect deepfakes or forged audio from an image. If the image has no readable text or is unrelated, say so and ask the user to describe what happened.
+
+Audio: you cannot listen to audio files and cannot tell whether a voice is synthetic (a deepfake). If the user mentions a voice message or asks to check a recording, say plainly that you do not analyse the audio itself, ask them to type out what was said, and then analyse the content. Warn that voice deepfakes of relatives are common, so they should call the person back on a known number before sending money.`;
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -44,11 +48,37 @@ export default async function handler(req, res) {
     try { body = JSON.parse(body); } catch { body = {}; }
   }
 
-  // Тек соңғы 12 хабарлама, әрқайсысы 2000 таңбадан аспайды
+  // Рұқсат етілген сурет форматтары
+  const OK_MEDIA = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+
+  // Мәтіндік не суретті блоктарды тазарту
+  function cleanContent(content) {
+    if (typeof content === "string") {
+      const t = content.slice(0, 2000);
+      return t.trim() ? t : null;
+    }
+    if (!Array.isArray(content)) return null;
+    const blocks = [];
+    for (const b of content) {
+      if (b && b.type === "text" && typeof b.text === "string" && b.text.trim()) {
+        blocks.push({ type: "text", text: b.text.slice(0, 2000) });
+      } else if (b && b.type === "image" && b.source && b.source.type === "base64"
+                 && OK_MEDIA.includes(b.source.media_type) && typeof b.source.data === "string") {
+        // ~5 МБ base64 шегі
+        if (b.source.data.length <= 7_000_000) {
+          blocks.push({ type: "image", source: { type: "base64", media_type: b.source.media_type, data: b.source.data } });
+        }
+      }
+    }
+    return blocks.length ? blocks : null;
+  }
+
+  // Тек соңғы 12 хабарлама
   const messages = (Array.isArray(body?.messages) ? body.messages : [])
-    .filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim())
+    .filter((m) => m && (m.role === "user" || m.role === "assistant"))
     .slice(-12)
-    .map((m) => ({ role: m.role, content: m.content.slice(0, 2000) }));
+    .map((m) => ({ role: m.role, content: cleanContent(m.content) }))
+    .filter((m) => m.content !== null);
 
   // API диалог user хабарламасынан басталуын талап етеді
   while (messages.length && messages[0].role !== "user") messages.shift();
