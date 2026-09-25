@@ -337,3 +337,23 @@ button, input, textarea, select { font: inherit; color: inherit; }
 }
 .bl-inv { margin: 10px 0 0; font-weight: 700; color: #C62811; }
 .bl-reason { margin: 8px 0 0; color: #7A1F12; }
+
+/* ---------- Ai-жәрдем: сурет пен аудио ---------- */
+.composer-tools { display: flex; flex-direction: column; gap: 6px; justify-content: flex-end; }
+.attach-btn {
+  width: 44px; height: 44px; border-radius: 12px; border: 2px solid var(--line, #E2DED6);
+  background: #fff; font-size: 20px; cursor: pointer; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+}
+.attach-btn:hover { border-color: var(--tangerine, #FF8C4A); background: #FFF3E6; }
+.attach-preview { margin-bottom: 4px; }
+.attach-chip {
+  display: inline-flex; align-items: center; gap: 10px; padding: 8px 12px;
+  background: #F2FBEC; border: 2px solid var(--leaf-dark, #4E9A2F); border-radius: 12px; font-weight: 600; font-size: 15px;
+}
+.attach-chip img { width: 40px; height: 40px; object-fit: cover; border-radius: 8px; }
+.attach-chip button {
+  width: 26px; height: 26px; border-radius: 50%; border: 0; cursor: pointer;
+  background: #E4573C; color: #fff; font-size: 15px; font-weight: 700; line-height: 1;
+}
+.msg-img { display: block; max-width: 220px; width: 100%; border-radius: 12px; margin-bottom: 8px; }

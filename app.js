@@ -423,10 +423,17 @@ function renderAi() {
       <div class="chat-main">
         <div class="messages" id="messages" aria-live="polite"></div>
         <div class="chips">${CHIPS.map((c) => `<button class="chip">${esc(c)}</button>`).join("")}</div>
+        <div id="attachPreview" class="attach-preview" hidden></div>
         <form class="composer" id="composer">
+          <div class="composer-tools">
+            <button type="button" class="attach-btn" id="photoBtn" title="Скриншот немесе фото жүктеу" aria-label="Сурет жүктеу">🖼️</button>
+            <button type="button" class="attach-btn" id="audioBtn" title="Дауыстық хабарлама" aria-label="Дауыстық хабарлама">🎤</button>
+          </div>
           <textarea id="chatInput" rows="2" placeholder="Жағдайды жазыңыз…" aria-label="Хабарлама"></textarea>
           <button class="btn btn-alarm" id="sendBtn" type="submit">Жіберу</button>
         </form>
+        <input type="file" id="photoInput" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+        <input type="file" id="audioInput" accept="audio/*" hidden>
         <p class="mode-note" id="modeNote">Ai-жәрдемге карта нөмірін, CVV немесе SMS-кодты жазбаңыз.</p>
       </div>
     </div>`, "#/");
@@ -437,27 +444,103 @@ function renderAi() {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(input.value); }
   });
   app.querySelectorAll(".chip").forEach((c) => c.addEventListener("click", () => sendChat(c.textContent)));
+
+  const photoInput = document.getElementById("photoInput");
+  const audioInput = document.getElementById("audioInput");
+  document.getElementById("photoBtn").addEventListener("click", () => photoInput.click());
+  document.getElementById("audioBtn").addEventListener("click", () => audioInput.click());
+  photoInput.addEventListener("change", () => { if (photoInput.files[0]) attachPhoto(photoInput.files[0]); photoInput.value = ""; });
+  audioInput.addEventListener("change", () => { if (audioInput.files[0]) handleAudio(audioInput.files[0]); audioInput.value = ""; });
+
+  drawAttachPreview();
   input.focus();
 }
 
+// Кезекте тұрған сурет (жіберілмеген)
+let pendingImage = null;
+
+function drawAttachPreview() {
+  const box = document.getElementById("attachPreview");
+  if (!box) return;
+  if (!pendingImage) { box.hidden = true; box.innerHTML = ""; return; }
+  box.hidden = false;
+  box.innerHTML = `<div class="attach-chip">
+    <img src="${pendingImage.dataUrl}" alt="">
+    <span>Сурет тіркелді</span>
+    <button type="button" id="attachRemove" aria-label="Суретті алып тастау">✕</button>
+  </div>`;
+  document.getElementById("attachRemove").addEventListener("click", () => { pendingImage = null; drawAttachPreview(); });
+}
+
+function attachPhoto(file) {
+  if (file.size > 5 * 1024 * 1024) {
+    const note = document.getElementById("modeNote");
+    if (note) note.textContent = "Сурет тым үлкен (5 МБ дейін болуы керек).";
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    const dataUrl = reader.result;
+    const comma = dataUrl.indexOf(",");
+    pendingImage = {
+      dataUrl,
+      media_type: file.type || "image/jpeg",
+      data: dataUrl.slice(comma + 1),
+    };
+    drawAttachPreview();
+    const note = document.getElementById("modeNote");
+    if (note) note.textContent = "Сурет тіркелді. «Жіберу» батырмасын басыңыз, қаласаңыз мәтін де қосыңыз.";
+  };
+  reader.readAsDataURL(file);
+}
+
+// Аудио: шынайы имитация. Дыбысты талдамаймыз, тек мазмұнын сұраймыз.
+function handleAudio(file) {
+  state.chat.push({ role: "user", content: `🎤 Дауыстық хабарлама тіркелді: ${file.name}` });
+  state.chat.push({ role: "assistant", content: "Мен дауыстық жазбаның дыбысын тыңдай алмаймын және дауыстың жасанды (дипфейк) екенін тексере алмаймын, бұл әзірге жеке зерттеу тақырыбы.\n\nСоның орнына жазбада не айтылғанын мәтінмен жазып жіберіңіз, мен мазмұнын талдап беремін. Егер бұл таныс адамның дауысы болса, ақша аудармас бұрын сол адамның нөміріне өзіңіз қайта қоңырау шалыңыз: қазір дауысты жасанды түрде көшіретін алаяқтар көбейді." });
+  drawMessages();
+}
+
+function msgText(content) {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) return content.filter((b) => b.type === "text").map((b) => b.text).join("\n");
+  return "";
+}
 function drawMessages(typing = false) {
   const box = document.getElementById("messages");
   if (!box) return;
-  box.innerHTML = state.chat.map((m) => `<div class="msg ${m.role === "user" ? "user" : "bot"}">${esc(m.content)}</div>`).join("")
-    + (typing ? `<div class="msg bot typing">Ai жазып жатыр…</div>` : "");
+  box.innerHTML = state.chat.map((m) => {
+    const thumb = m.preview ? `<img class="msg-img" src="${m.preview}" alt="">` : "";
+    const txt = esc(msgText(m.content));
+    return `<div class="msg ${m.role === "user" ? "user" : "bot"}">${thumb}${txt}</div>`;
+  }).join("") + (typing ? `<div class="msg bot typing">Ai жазып жатыр…</div>` : "");
   box.scrollTop = box.scrollHeight;
 }
 
 let chatBusy = false;
 async function sendChat(text) {
   text = (text || "").trim();
-  if (!text || chatBusy) return;
+  const img = pendingImage;
+  if ((!text && !img) || chatBusy) return;
   chatBusy = true;
   const input = document.getElementById("chatInput");
   const sendBtn = document.getElementById("sendBtn");
   if (input) input.value = "";
   if (sendBtn) sendBtn.disabled = true;
-  state.chat.push({ role: "user", content: text.slice(0, 2000) });
+
+  // Модельге жіберілетін мазмұн (мәтін + сурет блоктары)
+  let apiContent;
+  if (img) {
+    apiContent = [];
+    apiContent.push({ type: "image", source: { type: "base64", media_type: img.media_type, data: img.data } });
+    apiContent.push({ type: "text", text: (text || "Мына суретте алаяқтық белгілері бар ма? Тексеріп беріңіз.").slice(0, 2000) });
+  } else {
+    apiContent = text.slice(0, 2000);
+  }
+  // Экранда көрсету үшін: суреттің алдын ала көрінісін сақтаймыз
+  state.chat.push({ role: "user", content: apiContent, preview: img ? img.dataUrl : null });
+  pendingImage = null;
+  drawAttachPreview();
   drawMessages(true);
 
   let reply;
@@ -474,7 +557,7 @@ async function sendChat(text) {
     reply = data.reply;
   } catch (err) {
     console.warn("AI API қолжетімсіз, офлайн жауап:", err);
-    reply = offlineReply(text);
+    reply = offlineReply(typeof apiContent === "string" ? apiContent : (text || "сурет"));
     const note = document.getElementById("modeNote");
     if (note) note.textContent = "Желі жоқ: Ai-жәрдем қазір дайын жауаптар режимінде жұмыс істеп тұр.";
   }
